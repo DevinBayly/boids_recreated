@@ -8,7 +8,7 @@ layout (location = 2) in flat int outTid;
 
 layout (location = 0) out vec4 outFragColor;
 
-layout (set = 0, binding = 0,rgba8) uniform image2D t_view;
+layout (set = 0, binding = 0,rgba32f) uniform image2D t_view;
 // dimensions of image are 256x256 so use the outVID to read and write from texture
 void main ()
 {
