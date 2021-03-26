@@ -10,6 +10,9 @@ layout (location = 2) in vec2 particle_pos;
 // LOOK: out to rasterization, then to the `in` layouts in particle.frag
 layout (location = 0) out vec2 outColor;
 
+layout (location = 1) out  flat int  outVid;
+layout (location = 2) out flat int outTid;
+
 // emit a point to rasterization from each thread running particle.vert
 out gl_PerVertex
 {
@@ -21,5 +24,7 @@ void main ()
 {
   gl_PointSize = 2.0;
   outColor = inVel;
+  outVid = gl_VertexIndex;
+  outTid = gl_InstanceIndex;
   gl_Position = vec4(inPos.xy + particle_pos, 1.0, 1.0);
 }

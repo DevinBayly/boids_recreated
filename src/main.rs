@@ -56,7 +56,7 @@ impl State {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: Some("device and queue"),
-                    features: wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
+                    features: wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES, // needed to make it so that the texture can be both read write
                     limits: wgpu::Limits::default(),
                 },
                 None,
