@@ -20,17 +20,21 @@ void main ()
 	float x = mod(outTid,256);
 	float y = floor(outTid/256);
 	// do I know for sure what the actual number range is here? is it 0-1?
+	//imageStore(t_view,ivec2(x,y),vec4(1.0));
 	float texture_value = imageLoad(t_view,ivec2(x,y)).r;
-	// update texture at this point
-	if (texture_value <= 0) {
-		imageStore(t_view,ivec2(x,y),vec4(1.0));
-		outFragColor.r = 1.0;
+	if (texture_value > .7) {
+		outFragColor.r = 1;
+		imageStore(t_view,ivec2(x,y),vec4(texture_value - .01));
 	} else if (texture_value > .5) {
+	// update texture at this point
 		// use the texture  value to color our square
 		outFragColor.b = 1 ;
 		imageStore(t_view,ivec2(x,y),vec4(texture_value -.01));
-	} else if (texture_value < .5) {
+	} else if (texture_value > .3) {
 		outFragColor.g = 1 ;
 		imageStore(t_view,ivec2(x,y),vec4(texture_value -.01));
+	} else {
+		imageStore(t_view,ivec2(x,y),vec4(1.0));
+		outFragColor.r = 1;
 	}
 }
