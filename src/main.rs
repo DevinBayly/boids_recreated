@@ -123,9 +123,12 @@ impl State {
         let og_image= image::DynamicImage::new_rgba8(256,256);
         let image_data= og_image.as_rgba8().unwrap();
         let dimensions = og_image.dimensions();
+        // experiment with replacing the texture with raw data not using image crate
+        // make a vector to hold our data 
+        let raw_buffer_approach = [0u8;4*4*256*256];// will be used as the raw f32 texture, the first 4 is the number of bytes in a single color value, since we have 4 of those we have another 4 and then the image dimensions
         let texture_size = wgpu::Extent3d {
-            width: dimensions.0,
-            height: dimensions.1,
+            width: 256,
+            height:256,
             depth:1,
         };
         let texture  = device.create_texture( & wgpu::TextureDescriptor{
@@ -133,7 +136,7 @@ impl State {
             mip_level_count:1,
             sample_count:1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Uint,
+            format: wgpu::TextureFormat::Rgba32Float,
             usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST | wgpu::TextureUsage::STORAGE,
             label:Some("writable texture")
         });
@@ -144,11 +147,11 @@ impl State {
                 mip_level:0,
                 origin: wgpu::Origin3d::ZERO,
             },
-            image_data,
+            &raw_buffer_approach,
             wgpu::TextureDataLayout {
                 offset:0,
-                bytes_per_row:4*dimensions.0,
-                rows_per_image: dimensions.1
+                bytes_per_row:16*256,
+                rows_per_image:256
             },
             texture_size
         );
@@ -162,7 +165,7 @@ impl State {
                         visibility: wgpu::ShaderStage::FRAGMENT,
                         ty:wgpu::BindingType::StorageTexture {
                             view_dimension: wgpu::TextureViewDimension::D2,
-                            format: wgpu::TextureFormat::Rgba8Uint,
+                            format: wgpu::TextureFormat::Rgba32Float,
                             access: wgpu::StorageTextureAccess::ReadWrite
                         },
                         count:None
