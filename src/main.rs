@@ -1,13 +1,15 @@
 use std::{borrow::Cow, mem};
 use wgpu::util::DeviceExt;
 
+use image::{DynamicImage,GenericImageView};
+
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
 
-const NUM_PARTICLES: u32 = 15000;
+const NUM_PARTICLES: u32 = 1500;
 
 // number of particles per workgroup, oh yea work groups are fama
 
@@ -30,6 +32,7 @@ struct State {
     // specific to how we divide up the data going into the gpu to be worked on
     work_group_count: u32,
     frame_num: usize,
+    texture_bind_group: wgpu::BindGroup,
 }
 
 impl State {
@@ -53,7 +56,7 @@ impl State {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: Some("device and queue"),
-                    features: wgpu::Features::empty(),
+                    features: wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
                     limits: wgpu::Limits::default(),
                 },
                 None,
@@ -114,6 +117,76 @@ impl State {
             source: cs_data,
             flags: wgpu::ShaderFlags::default()
         });
+
+
+        // texture with storage capability
+        let og_image= image::DynamicImage::new_rgba8(256,256);
+        let image_data= og_image.as_rgba8().unwrap();
+        let dimensions = og_image.dimensions();
+        let texture_size = wgpu::Extent3d {
+            width: dimensions.0,
+            height: dimensions.1,
+            depth:1,
+        };
+        let texture  = device.create_texture( & wgpu::TextureDescriptor{
+            size:texture_size,
+            mip_level_count:1,
+            sample_count:1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Uint,
+            usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST | wgpu::TextureUsage::STORAGE,
+            label:Some("writable texture")
+        });
+
+        queue.write_texture(
+            wgpu::TextureCopyView{
+                texture: &texture,
+                mip_level:0,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            image_data,
+            wgpu::TextureDataLayout {
+                offset:0,
+                bytes_per_row:4*dimensions.0,
+                rows_per_image: dimensions.1
+            },
+            texture_size
+        );
+        // make a view and a sampler 
+        let texture_view = texture.create_view(& wgpu::TextureViewDescriptor::default());
+        let texture_bind_group_layout = device.create_bind_group_layout(
+            & wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry{
+                        binding:0,
+                        visibility: wgpu::ShaderStage::FRAGMENT,
+                        ty:wgpu::BindingType::StorageTexture {
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            format: wgpu::TextureFormat::Rgba8Uint,
+                            access: wgpu::StorageTextureAccess::ReadWrite
+                        },
+                        count:None
+                    }
+                ],
+                label:Some("texture bind layout")
+            }
+        );
+        // do the actual bind_group creation now that you have the layout
+        let texture_bind_group = device.create_bind_group( & wgpu::BindGroupDescriptor{
+            label:Some("texture bind group"),
+            layout: &texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&texture_view)
+                },
+            ]
+        });
+
+
+        // have to make a sampler too
+        // texture bind group
+
 
 
         // use module in pipeline definitions
@@ -186,7 +259,7 @@ impl State {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("render pipeline layout"),
-                bind_group_layouts: &[],
+                bind_group_layouts: &[&texture_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -294,6 +367,8 @@ impl State {
             particle_buffers.push(buf);
         }
         let mut particle_bind_groups: Vec<wgpu::BindGroup> = Vec::new();
+        // so clever! the first bind group gets the binding 1 to buffer at 0 and binding 2 and buffer 1
+        // then the second group gets binding 1 at buffer 1, with binding 2 at buffer 0
         for i in 0..2 {
             let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 layout: &compute_bind_group_layout,
@@ -339,6 +414,7 @@ impl State {
             vertices_buffer,
             // groups
             particle_bind_groups,
+            texture_bind_group
         }
     }
     fn render(&mut self) -> Result<(), wgpu::SwapChainError> {
@@ -395,11 +471,14 @@ impl State {
 
             // set the pipeline
             render_pass.set_pipeline(& self.render_pipeline);
+
             // no bindgroups for the render pipeline this time
             // set the buffers
             render_pass.set_vertex_buffer(0, self.particle_buffers[(self.frame_num + 1)%2].slice(..));
 
             render_pass.set_vertex_buffer(1, self.vertices_buffer.slice(..));
+            // set the texture bind group so something happens with it
+            render_pass.set_bind_group(0,&self.texture_bind_group,&[]);
 
 
             // make draw call

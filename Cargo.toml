@@ -18,7 +18,7 @@ wgpu = "0.7"
 winit = "0.22"
 rand = "0.8.3"
 shaderc = "0.7"
-
+wgpu-types= "0.7.0"
 
 
 

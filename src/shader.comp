@@ -13,7 +13,7 @@ layout(set = 0, binding = 1) buffer ParticlesA
 {
    Particle particlesA[ ];
 };
-int NUM_PARTICLES = 15000;
+int NUM_PARTICLES = 1500;
 // Binding 1 : Particle storage buffer (write)
 layout(set = 0, binding = 2) buffer ParticlesB
 {
