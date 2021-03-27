@@ -11,7 +11,7 @@ use winit::{
 
 const NUM_PARTICLES: u32 = 1500;
 
-// number of particles per workgroup, oh yea work groups are fama
+// number of particles per workgroup, oh yea work groups are famaliar
 
 const PARTICLES_PER_GROUP: u32 = 64;
 
@@ -398,7 +398,7 @@ impl State {
         // calculate workgroups
         // will get a number used to break the total number of particles into groups
         let work_group_count =
-            ((NUM_PARTICLES as f32) / (PARTICLES_PER_GROUP as f32)).ceil() as u32;
+            ((NUM_PARTICLES as f32) / (PARTICLES_PER_GROUP as f32)).ceil() as u32; // doing a 1 dimensional workgroup count
 
         State {
             swap_chain,
