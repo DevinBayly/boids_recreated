@@ -44,7 +44,7 @@ layout (set = 1,binding = 0) uniform UBO2 {
 float random(float i) {
 	return fract(sin(i)*100000.0) - .5;
 }
-float maxVelo = .6;
+float maxVelo = 2.0;
 float radius = .1;
 void main()
 {
@@ -70,14 +70,23 @@ void main()
 		// calculate the direction from last to the mouse + some jitter
 		vec2 direction_towards_mouse = normalize(vec2(uMouse.x + random(lastPos.x)*.05,uMouse.y+ random(lastPos.y)*.05) - lastPos);
 		vec2 direction_away = - direction_towards_mouse;
-		vec2 accel = direction_away*.1;
+		vec2 accel = direction_away;
 		newVel=+ accel;
 	}
-	newVel*=.90;
+	newVel*=.99;
 
 	if (length(newVel) > maxVelo) {
 		newVel = normalize(newVel)*maxVelo;
 	} 
+	vec2 newPos = lastPos + newVel*.01;
+	// have limits on the borders
+	// when we hit these flip the velocity direction to simulate bounce
+	if (newPos.x < -1 || newPos.x > 1) {
+		newVel.x *= -1;
+	} 
+	if (newPos.y < -1 || newPos.y > 1) {
+		newVel.y *= -1;
+	} 
 	particlesB[index].vel.xy = newVel;
-	particlesB[index].pos.xy  = lastPos + newVel*.01; 
+	particlesB[index].pos.xy  = newPos; 
 }
