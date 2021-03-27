@@ -44,22 +44,19 @@ void main()
 
     // Current SSBO index
     uint index = gl_GlobalInvocationID.x;
-	//// I guess this is going to be the same as the gl_LocalInvocationIndex this time because its a one dimensional compute anyways,
-	//// set the constants
-	//// these are the size of our grid
-	//float width = 1;
-	//float height =  1;
-	//// then the space between the parts
-	//float space = 5;
-	//// points to place along width and height
-	//float w_points = width/space;
-	//float h_points = height/space;
-	//// then using mod and floor we can associate a particle invocation index with these w-hpoints
-	//float xpos = mod(index,w_points)*space;
-	//float ypos = floor(index/h_points)*space;
-
-
-	
-    particlesB[index].pos.xy = vec2(float(index)/NUM_PARTICLES,float(index)/NUM_PARTICLES);
-
+	float computable_index = float(index);
+	// I guess this is going to be the same as the gl_LocalInvocationIndex this time because its a one dimensional compute anyways,
+	// set the constants
+	// these are the size of our grid
+	float width = 256;
+	float height =  256;
+	// then the space between the parts
+	float space = 5;
+	// points to place along width and height
+	float w_points = width/space;
+	float h_points = height/space;
+	// then using mod and floor we can associate a particle invocation index with these w-hpoints
+	float xpos = mod(computable_index,w_points)*space;
+	float ypos = floor(computable_index/h_points)*space;
+    particlesB[index].pos.xy = vec2(xpos/width*2 - 1,ypos/height *2 - 1);
 }
