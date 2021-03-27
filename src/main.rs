@@ -9,7 +9,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-const NUM_PARTICLES: u32 = 15000;
+const NUM_PARTICLES: u32 = 1500000;
 
 // number of particles per workgroup, oh yea work groups are famaliar
 
@@ -347,7 +347,7 @@ impl State {
         // making the buffers
         // buffer for the shape of our output, the arrow shape made of 2 triangles, so 6 vertices total
         // actually it makes more sense that this is the xy points for vertices of a single triangle
-        let side_length = 0.0025f32;
+        let side_length = 0.001f32;
         let vertex_buffer_data = [-side_length,-side_length,
         side_length,-side_length,
         side_length,side_length,

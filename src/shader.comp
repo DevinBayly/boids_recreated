@@ -13,7 +13,7 @@ layout(set = 0, binding = 1) buffer ParticlesA
 {
    Particle particlesA[ ];
 };
-int NUM_PARTICLES = 15000;
+int NUM_PARTICLES = 1500000;
 // Binding 1 : Particle storage buffer (write)
 layout(set = 0, binding = 2) buffer ParticlesB
 {
@@ -44,8 +44,8 @@ layout (set = 1,binding = 0) uniform UBO2 {
 float random(float i) {
 	return fract(sin(i)*100000.0) - .5;
 }
-float maxVelo = 2.0;
-float radius = .1;
+float maxVelo = 0.8;
+float radius = 2.0;
 void main()
 {
 		// LOOK: This is very similar to a CUDA kernel.
@@ -66,19 +66,17 @@ void main()
 	vec2 mouse_vec = vec2(uMouse.x,uMouse.y);
 	// this is the radius
 	vec2 newVel = lastVel;
-	if (distance(lastPos,mouse_vec) < radius ) {
 		// calculate the direction from last to the mouse + some jitter
 		vec2 direction_towards_mouse = normalize(vec2(uMouse.x + random(lastPos.x)*.05,uMouse.y+ random(lastPos.y)*.05) - lastPos);
 		vec2 direction_away = - direction_towards_mouse;
-		vec2 accel = direction_away;
-		newVel=+ accel;
-	}
-	newVel*=.99;
+		vec2 accel = direction_towards_mouse;
+		newVel+= accel*.01;
+	//newVel*=.99;
 
 	if (length(newVel) > maxVelo) {
 		newVel = normalize(newVel)*maxVelo;
 	} 
-	vec2 newPos = lastPos + newVel*.01;
+	vec2 newPos = lastPos + newVel*.01	;
 	// have limits on the borders
 	// when we hit these flip the velocity direction to simulate bounce
 	if (newPos.x < -1 || newPos.x > 1) {
