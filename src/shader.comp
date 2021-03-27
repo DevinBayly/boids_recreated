@@ -45,6 +45,7 @@ float random(float i) {
 	return fract(sin(i)*100000.0) - .5;
 }
 float maxVelo = .6;
+float radius = .1;
 void main()
 {
 		// LOOK: This is very similar to a CUDA kernel.
@@ -62,10 +63,18 @@ void main()
 	// these are large values getting brought in 
 
 	// use the normalized direction to change velocity and have the accumulated velocity update the position
+	vec2 mouse_vec = vec2(uMouse.x,uMouse.y);
+	// this is the radius
+	vec2 newVel = lastVel;
+	if (distance(lastPos,mouse_vec) < radius ) {
+		// calculate the direction from last to the mouse + some jitter
+		vec2 direction_towards_mouse = normalize(vec2(uMouse.x + random(lastPos.x)*.05,uMouse.y+ random(lastPos.y)*.05) - lastPos);
+		vec2 direction_away = - direction_towards_mouse;
+		vec2 accel = direction_away*.1;
+		newVel=+ accel;
+	}
+	newVel*=.90;
 
-	vec2 accel = normalize(vec2(uMouse.x + random(lastPos.x)*.05,uMouse.y+ random(lastPos.y)*.05) - lastPos)*.01;
-
-	vec2 newVel = lastVel + accel;
 	if (length(newVel) > maxVelo) {
 		newVel = normalize(newVel)*maxVelo;
 	} 
