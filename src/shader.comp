@@ -35,6 +35,11 @@ layout (set = 0 ,binding = 0) uniform UBO
 	float rule3Scale;
 } ubo;
 
+layout (set = 1,binding = 0) uniform UBO2 {
+	float X;
+	float Y;
+} uMouse;
+
 void main()
 {
 		// LOOK: This is very similar to a CUDA kernel.
@@ -58,5 +63,8 @@ void main()
 	// then using mod and floor we can associate a particle invocation index with these w-hpoints
 	float xpos = mod(computable_index,w_points)*space;
 	float ypos = floor(computable_index/h_points)*space;
-    particlesB[index].pos.xy = vec2(xpos/width*2 - 1,ypos/height *2 - 1);
+	vec2 particle_pos = vec2(xpos/width*2 - 1,ypos/height *2 - 1);
+    particlesB[index].pos.xy = particle_pos;
+	// these are large values getting brought in 
+	particlesB[index].vel.xy  = vec2(uMouse.X,uMouse.Y) ; 
 }

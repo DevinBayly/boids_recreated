@@ -25,6 +25,9 @@ struct State {
     surface: wgpu::Surface,
     particle_bind_groups: Vec<wgpu::BindGroup>,
     particle_buffers: Vec<wgpu::Buffer>,
+    // make a buffer and bind group for the mouse data
+    mouse_buffer: wgpu::Buffer,
+    mouse_bind_group: wgpu::BindGroup,
     vertices_buffer: wgpu::Buffer,
     // pipelines
     render_pipeline: wgpu::RenderPipeline,
@@ -212,6 +215,21 @@ impl State {
             usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
         });
 
+        let mouse_bindgroup_layout = device.create_bind_group_layout( & wgpu::BindGroupLayoutDescriptor {
+            label:Some("mouse bindgroup layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding:0,
+                    visibility: wgpu::ShaderStage::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset:false,
+                        min_binding_size:None
+                    },
+                    count:None,
+                }
+            ],
+        });
         let compute_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[
@@ -253,7 +271,7 @@ impl State {
         let compute_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("compute pipeline layout"),
-                bind_group_layouts: &[&compute_bind_group_layout],
+                bind_group_layouts: &[&compute_bind_group_layout,&mouse_bindgroup_layout],
                 push_constant_ranges: &[],
             });
 
@@ -395,6 +413,25 @@ impl State {
             });
             particle_bind_groups.push(group);
         }
+
+        // make the mouse buffer and the mouse bind group
+        let mouse_buffer = device.create_buffer_init( & wgpu::util::BufferInitDescriptor{
+            label:Some("mouse buffer"),
+            contents:bytemuck::cast_slice(&[1.0f32  ,1.0f32]),
+            usage: wgpu::BufferUsage::COPY_DST | wgpu::BufferUsage::COPY_SRC | wgpu::BufferUsage::UNIFORM // make it possibly a destination to copy data to, also make it possible to use it as a uniform
+        });
+
+        let mouse_bind_group = device.create_bind_group( & wgpu::BindGroupDescriptor{
+            label:Some("mouse bind group"),
+            layout:&mouse_bindgroup_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding:0,
+                    resource: mouse_buffer.as_entire_binding()
+                }
+            ]
+        });
+
         // calculate workgroups
         // will get a number used to break the total number of particles into groups
         let work_group_count =
@@ -415,9 +452,11 @@ impl State {
             // buffers
             particle_buffers,
             vertices_buffer,
+            mouse_buffer,
             // groups
             particle_bind_groups,
-            texture_bind_group
+            texture_bind_group,
+            mouse_bind_group
         }
     }
     fn render(&mut self) -> Result<(), wgpu::SwapChainError> {
@@ -441,6 +480,7 @@ impl State {
             // set pipeline and bindgroups then dispatch setting size
             cpass.set_pipeline(&self.compute_pipeline);
             cpass.set_bind_group(0, &self.particle_bind_groups[self.frame_num%2],&[]);// ok so this is how we get the right buffer into the compute pass, we keep a count of the frame we are on and select one or the other
+            cpass.set_bind_group(1, &self.mouse_bind_group,&[]);// ok so this is how we get the right buffer into the compute pass, we keep a count of the frame we are on and select one or the other
             //?? but how  do we know to alternate between using one as source and other as dest? is this expressed in the wgsl?
             // this is a mixture of using 
 
@@ -506,7 +546,16 @@ impl State {
     }
 
     fn input(&mut self, event: &WindowEvent) -> bool {
-        false
+        match event {
+            WindowEvent::CursorMoved{position,..} => {
+                println!("cursor moved {:?}",&position);
+                // update the buffer in the way that we did when they updated the texture
+                // use the queue and write_buffer data to the mouse_buffer
+                self.queue.write_buffer(&self.mouse_buffer,0,bytemuck::cast_slice(&[((position.x as f32)/self.size.width as f32)*2.0 - 1.0,((position.y as f32)/self.size.height as f32)*2.0 - 1.0]));
+                true
+            },
+            _ => false
+        }
     }
     fn update(&mut self) {}
 }
