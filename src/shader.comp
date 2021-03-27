@@ -13,7 +13,7 @@ layout(set = 0, binding = 1) buffer ParticlesA
 {
    Particle particlesA[ ];
 };
-int NUM_PARTICLES = 1500;
+int NUM_PARTICLES = 15000;
 // Binding 1 : Particle storage buffer (write)
 layout(set = 0, binding = 2) buffer ParticlesB
 {
@@ -40,6 +40,11 @@ layout (set = 1,binding = 0) uniform UBO2 {
 	float Y;
 } uMouse;
 
+// book of shaders suggested pseudo random 
+float random(uint index) {
+	return fract(sin(index)*100000.0) - .5;
+}
+
 void main()
 {
 		// LOOK: This is very similar to a CUDA kernel.
@@ -49,22 +54,10 @@ void main()
 
     // Current SSBO index
     uint index = gl_GlobalInvocationID.x;
-	float computable_index = float(index);
-	// I guess this is going to be the same as the gl_LocalInvocationIndex this time because its a one dimensional compute anyways,
-	// set the constants
-	// these are the size of our grid
-	float width = 256;
-	float height =  256;
-	// then the space between the parts
-	float space = 5;
-	// points to place along width and height
-	float w_points = width/space;
-	float h_points = height/space;
-	// then using mod and floor we can associate a particle invocation index with these w-hpoints
-	float xpos = mod(computable_index,w_points)*space;
-	float ypos = floor(computable_index/h_points)*space;
-	vec2 particle_pos = vec2(xpos/width*2 - 1,ypos/height *2 - 1);
-    particlesB[index].pos.xy = particle_pos;
+
+	// get previous position , this is a read only buffer
+	vec2 lastPos = particlesA[index].pos.xy;
+
 	// these are large values getting brought in 
-	particlesB[index].vel.xy  = vec2(uMouse.X,uMouse.Y) ; 
+	particlesB[index].pos.xy  = normalize(vec2(uMouse.X,uMouse.Y) - lastPos)*.1 + lastPos + vec2(random(index),random(index+7))*.05 ; 
 }

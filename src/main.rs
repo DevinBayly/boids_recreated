@@ -9,7 +9,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-const NUM_PARTICLES: u32 = 1500;
+const NUM_PARTICLES: u32 = 15000;
 
 // number of particles per workgroup, oh yea work groups are famaliar
 
@@ -548,10 +548,10 @@ impl State {
     fn input(&mut self, event: &WindowEvent) -> bool {
         match event {
             WindowEvent::CursorMoved{position,..} => {
-                println!("cursor moved {:?}",&position);
+                //println!("cursor moved {:?}",&position);
                 // update the buffer in the way that we did when they updated the texture
                 // use the queue and write_buffer data to the mouse_buffer
-                self.queue.write_buffer(&self.mouse_buffer,0,bytemuck::cast_slice(&[((position.x as f32)/self.size.width as f32)*2.0 - 1.0,((position.y as f32)/self.size.height as f32)*2.0 - 1.0]));
+                self.queue.write_buffer(&self.mouse_buffer,0,bytemuck::cast_slice(&[((position.x as f32)/self.size.width as f32)*2.0 - 1.0,((self.size.height as f32 - position.y as f32)/self.size.height as f32)*2.0 - 1.0]));
                 true
             },
             _ => false
