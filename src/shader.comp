@@ -36,15 +36,15 @@ layout (set = 0 ,binding = 0) uniform UBO
 } ubo;
 
 layout (set = 1,binding = 0) uniform UBO2 {
-	float X;
-	float Y;
+	float x;
+	float y;
 } uMouse;
 
 // book of shaders suggested pseudo random 
-float random(uint index) {
-	return fract(sin(index)*100000.0) - .5;
+float random(float i) {
+	return fract(sin(i)*100000.0) - .5;
 }
-
+float maxVelo = .6;
 void main()
 {
 		// LOOK: This is very similar to a CUDA kernel.
@@ -57,7 +57,18 @@ void main()
 
 	// get previous position , this is a read only buffer
 	vec2 lastPos = particlesA[index].pos.xy;
+	vec2 lastVel = particlesA[index].vel.xy;
 
 	// these are large values getting brought in 
-	particlesB[index].pos.xy  = normalize(vec2(uMouse.X,uMouse.Y) - lastPos)*.1 + lastPos + vec2(random(index),random(index+7))*.05 ; 
+
+	// use the normalized direction to change velocity and have the accumulated velocity update the position
+
+	vec2 accel = normalize(vec2(uMouse.x + random(lastPos.x)*.05,uMouse.y+ random(lastPos.y)*.05) - lastPos)*.01;
+
+	vec2 newVel = lastVel + accel;
+	if (length(newVel) > maxVelo) {
+		newVel = normalize(newVel)*maxVelo;
+	} 
+	particlesB[index].vel.xy = newVel;
+	particlesB[index].pos.xy  = lastPos + newVel*.01; 
 }

@@ -347,7 +347,7 @@ impl State {
         // making the buffers
         // buffer for the shape of our output, the arrow shape made of 2 triangles, so 6 vertices total
         // actually it makes more sense that this is the xy points for vertices of a single triangle
-        let side_length = 0.005f32;
+        let side_length = 0.0025f32;
         let vertex_buffer_data = [-side_length,-side_length,
         side_length,-side_length,
         side_length,side_length,
@@ -500,9 +500,9 @@ impl State {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.5,
+                            r: 0.0,
+                            g: 0.0,
+                            b: 0.0,
                             a: 1.0,
                         }),
                         store: true,
