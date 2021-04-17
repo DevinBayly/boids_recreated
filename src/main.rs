@@ -1,7 +1,8 @@
 use std::{borrow::Cow, mem};
+use std::fs::read;
 use wgpu::util::DeviceExt;
 
-use image::{DynamicImage,GenericImageView};
+use image::{DynamicImage, GenericImageView};
 
 use winit::{
     event::*,
@@ -9,7 +10,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-const NUM_PARTICLES: u32 = 1500000;
+const NUM_PARTICLES: u32 = 15000;
 
 // number of particles per workgroup, oh yea work groups are famaliar
 
@@ -18,9 +19,9 @@ const PARTICLES_PER_GROUP: u32 = 64;
 // this is like our state struct
 struct State {
     swap_chain: wgpu::SwapChain,
-    sc_desc:wgpu::SwapChainDescriptor,
+    sc_desc: wgpu::SwapChainDescriptor,
     device: wgpu::Device,
-    queue:wgpu::Queue,
+    queue: wgpu::Queue,
     size: winit::dpi::PhysicalSize<u32>,
     surface: wgpu::Surface,
     particle_bind_groups: Vec<wgpu::BindGroup>,
@@ -92,12 +93,35 @@ impl State {
         let fs_src = include_str!("shader.frag");
         let cs_src = include_str!("shader.comp");
 
-
         // compile
         let mut compiler = shaderc::Compiler::new().unwrap();
-        let vs_spirv= compiler.compile_into_spirv(vs_src, shaderc::ShaderKind::Vertex,"shader.vert","main",None).unwrap();
-        let fs_spirv = compiler.compile_into_spirv(fs_src, shaderc::ShaderKind::Fragment,"shader.frag","main",None).unwrap();
-        let cs_spirv = compiler.compile_into_spirv(cs_src, shaderc::ShaderKind::Compute,"shader.comp","main",None).unwrap();
+        let vs_spirv = compiler
+            .compile_into_spirv(
+                vs_src,
+                shaderc::ShaderKind::Vertex,
+                "shader.vert",
+                "main",
+                None,
+            )
+            .unwrap();
+        let fs_spirv = compiler
+            .compile_into_spirv(
+                fs_src,
+                shaderc::ShaderKind::Fragment,
+                "shader.frag",
+                "main",
+                None,
+            )
+            .unwrap();
+        let cs_spirv = compiler
+            .compile_into_spirv(
+                cs_src,
+                shaderc::ShaderKind::Compute,
+                "shader.comp",
+                "main",
+                None,
+            )
+            .unwrap();
 
         // get data to load into module
         let vs_data = wgpu::util::make_spirv(vs_spirv.as_binary_u8());
@@ -105,98 +129,90 @@ impl State {
         let cs_data = wgpu::util::make_spirv(cs_spirv.as_binary_u8());
 
         // make into module
-        let vs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor{
-            label:Some("vert shader"),
+        let vs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("vert shader"),
             source: vs_data,
-            flags: wgpu::ShaderFlags::default()
+            flags: wgpu::ShaderFlags::default(),
         });
-        let fs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor{
-            label:Some("frag shader"),
+        let fs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("frag shader"),
             source: fs_data,
-            flags: wgpu::ShaderFlags::default()
+            flags: wgpu::ShaderFlags::default(),
         });
-        let cs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor{
-            label:Some("comp shader"),
+        let cs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("comp shader"),
             source: cs_data,
-            flags: wgpu::ShaderFlags::default()
+            flags: wgpu::ShaderFlags::default(),
         });
-
 
         // texture with storage capability
-        let og_image= image::DynamicImage::new_rgba8(256,256);
-        let image_data= og_image.as_rgba8().unwrap();
+        let og_image = image::DynamicImage::new_rgba8(256, 256);
+        let image_data = og_image.as_rgba8().unwrap();
         let dimensions = og_image.dimensions();
         // experiment with replacing the texture with raw data not using image crate
-        // make a vector to hold our data 
-        let raw_buffer_approach = [0u8;4*4*256*256];// will be used as the raw f32 texture, the first 4 is the number of bytes in a single color value, since we have 4 of those we have another 4 and then the image dimensions
+        // make a vector to hold our data
+        let raw_buffer_approach = [0u8; 4 * 4 * 256 * 256]; // will be used as the raw f32 texture, the first 4 is the number of bytes in a single color value, since we have 4 of those we have another 4 and then the image dimensions
         let texture_size = wgpu::Extent3d {
             width: 256,
-            height:256,
-            depth:1,
+            height: 256,
+            depth: 1,
         };
-        let texture  = device.create_texture( & wgpu::TextureDescriptor{
-            size:texture_size,
-            mip_level_count:1,
-            sample_count:1,
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            size: texture_size,
+            mip_level_count: 1,
+            sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba32Float,
-            usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST | wgpu::TextureUsage::STORAGE,
-            label:Some("writable texture")
+            usage: wgpu::TextureUsage::SAMPLED
+                | wgpu::TextureUsage::COPY_DST
+                | wgpu::TextureUsage::STORAGE,
+            label: Some("writable texture"),
         });
 
         queue.write_texture(
-            wgpu::TextureCopyView{
+            wgpu::TextureCopyView {
                 texture: &texture,
-                mip_level:0,
+                mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
             },
             &raw_buffer_approach,
             wgpu::TextureDataLayout {
-                offset:0,
-                bytes_per_row:16*256,
-                rows_per_image:256
+                offset: 0,
+                bytes_per_row: 16 * 256,
+                rows_per_image: 256,
             },
-            texture_size
+            texture_size,
         );
-        // make a view and a sampler 
-        let texture_view = texture.create_view(& wgpu::TextureViewDescriptor::default());
-        let texture_bind_group_layout = device.create_bind_group_layout(
-            & wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry{
-                        binding:0,
-                        visibility: wgpu::ShaderStage::FRAGMENT,
-                        ty:wgpu::BindingType::StorageTexture {
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            format: wgpu::TextureFormat::Rgba32Float,
-                            access: wgpu::StorageTextureAccess::ReadWrite
-                        },
-                        count:None
-                    }
-                ],
-                label:Some("texture bind layout")
-            }
-        );
-        // do the actual bind_group creation now that you have the layout
-        let texture_bind_group = device.create_bind_group( & wgpu::BindGroupDescriptor{
-            label:Some("texture bind group"),
-            layout: &texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
+        // make a view and a sampler
+        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let texture_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture_view)
-                },
-            ]
+                    visibility: wgpu::ShaderStage::FRAGMENT,
+                    ty: wgpu::BindingType::StorageTexture {
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        format: wgpu::TextureFormat::Rgba32Float,
+                        access: wgpu::StorageTextureAccess::ReadWrite,
+                    },
+                    count: None,
+                }],
+                label: Some("texture bind layout"),
+            });
+        // do the actual bind_group creation now that you have the layout
+        let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("texture bind group"),
+            layout: &texture_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&texture_view),
+            }],
         });
-
 
         // have to make a sampler too
         // texture bind group
 
-
-
         // use module in pipeline definitions
-
 
         let sim_param_data = [
             0.04f32, // deltaT
@@ -215,21 +231,20 @@ impl State {
             usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
         });
 
-        let mouse_bindgroup_layout = device.create_bind_group_layout( & wgpu::BindGroupLayoutDescriptor {
-            label:Some("mouse bindgroup layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding:0,
+        let mouse_bindgroup_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("mouse bindgroup layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
                     visibility: wgpu::ShaderStage::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset:false,
-                        min_binding_size:None
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
                     },
-                    count:None,
-                }
-            ],
-        });
+                    count: None,
+                }],
+            });
         let compute_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[
@@ -271,7 +286,7 @@ impl State {
         let compute_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("compute pipeline layout"),
-                bind_group_layouts: &[&compute_bind_group_layout,&mouse_bindgroup_layout],
+                bind_group_layouts: &[&compute_bind_group_layout, &mouse_bindgroup_layout],
                 push_constant_ranges: &[],
             });
 
@@ -348,15 +363,23 @@ impl State {
         // buffer for the shape of our output, the arrow shape made of 2 triangles, so 6 vertices total
         // actually it makes more sense that this is the xy points for vertices of a single triangle
         let side_length = 0.001f32;
-        let vertex_buffer_data = [-side_length,-side_length,
-        side_length,-side_length,
-        side_length,side_length,
-        // second triangle now
-        side_length,side_length,
-        -side_length,side_length,
-        -side_length,-side_length]; // ? so is this x and Y values totgether? or are we doing something in the shader code to take this and produce x y values?
-                                                                             // ? mystery about how the other half of the shape gets drawn , but maybe that will become clear in the render
-                                                                             // create actual buffer from the data
+        let vertex_buffer_data = [
+            -side_length,
+            -side_length,
+            side_length,
+            -side_length,
+            side_length,
+            side_length,
+            // second triangle now
+            side_length,
+            side_length,
+            -side_length,
+            side_length,
+            -side_length,
+            -side_length,
+        ]; // ? so is this x and Y values totgether? or are we doing something in the shader code to take this and produce x y values?
+           // ? mystery about how the other half of the shape gets drawn , but maybe that will become clear in the render
+           // create actual buffer from the data
         let vertices_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("vertex buffer"),
             contents: bytemuck::cast_slice(&vertex_buffer_data),
@@ -415,21 +438,21 @@ impl State {
         }
 
         // make the mouse buffer and the mouse bind group
-        let mouse_buffer = device.create_buffer_init( & wgpu::util::BufferInitDescriptor{
-            label:Some("mouse buffer"),
-            contents:bytemuck::cast_slice(&[1.0f32  ,1.0f32]),
-            usage: wgpu::BufferUsage::COPY_DST | wgpu::BufferUsage::COPY_SRC | wgpu::BufferUsage::UNIFORM // make it possibly a destination to copy data to, also make it possible to use it as a uniform
+        let mouse_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("mouse buffer"),
+            contents: bytemuck::cast_slice(&[1.0f32, 1.0f32]),
+            usage: wgpu::BufferUsage::COPY_DST
+                | wgpu::BufferUsage::COPY_SRC
+                | wgpu::BufferUsage::UNIFORM, // make it possibly a destination to copy data to, also make it possible to use it as a uniform
         });
 
-        let mouse_bind_group = device.create_bind_group( & wgpu::BindGroupDescriptor{
-            label:Some("mouse bind group"),
-            layout:&mouse_bindgroup_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding:0,
-                    resource: mouse_buffer.as_entire_binding()
-                }
-            ]
+        let mouse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("mouse bind group"),
+            layout: &mouse_bindgroup_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: mouse_buffer.as_entire_binding(),
+            }],
         });
 
         // calculate workgroups
@@ -456,7 +479,7 @@ impl State {
             // groups
             particle_bind_groups,
             texture_bind_group,
-            mouse_bind_group
+            mouse_bind_group,
         }
     }
     fn render(&mut self) -> Result<(), wgpu::SwapChainError> {
@@ -469,25 +492,22 @@ impl State {
                 label: Some("render encoder"),
             });
 
-
         // wait until compute pass is complete before running the render pass
         encoder.push_debug_group("computing boid movement");
         {
             //println!("doing compute pass");
-            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label:None
-            });
+            let mut cpass =
+                encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
             // set pipeline and bindgroups then dispatch setting size
             cpass.set_pipeline(&self.compute_pipeline);
-            cpass.set_bind_group(0, &self.particle_bind_groups[self.frame_num%2],&[]);// ok so this is how we get the right buffer into the compute pass, we keep a count of the frame we are on and select one or the other
-            cpass.set_bind_group(1, &self.mouse_bind_group,&[]);// ok so this is how we get the right buffer into the compute pass, we keep a count of the frame we are on and select one or the other
-            //?? but how  do we know to alternate between using one as source and other as dest? is this expressed in the wgsl?
-            // this is a mixture of using 
+            cpass.set_bind_group(0, &self.particle_bind_groups[self.frame_num % 2], &[]); // ok so this is how we get the right buffer into the compute pass, we keep a count of the frame we are on and select one or the other
+            cpass.set_bind_group(1, &self.mouse_bind_group, &[]); // ok so this is how we get the right buffer into the compute pass, we keep a count of the frame we are on and select one or the other
+                                                                  //?? but how  do we know to alternate between using one as source and other as dest? is this expressed in the wgsl?
+                                                                  // this is a mixture of using
 
-            cpass.dispatch(self.work_group_count,1,1); // one dimensional compute shader,
+            cpass.dispatch(self.work_group_count, 1, 1); // one dimensional compute shader,
         }
         encoder.pop_debug_group();
-
 
         // now do the render pass
         encoder.push_debug_group("doing draw pass");
@@ -508,31 +528,29 @@ impl State {
                         store: true,
                     },
                 }],
-                depth_stencil_attachment:None
+                depth_stencil_attachment: None,
             });
 
-
             // set the pipeline
-            render_pass.set_pipeline(& self.render_pipeline);
+            render_pass.set_pipeline(&self.render_pipeline);
 
             // no bindgroups for the render pipeline this time
             // set the buffers
-            render_pass.set_vertex_buffer(0, self.particle_buffers[(self.frame_num + 1)%2].slice(..));
+            render_pass
+                .set_vertex_buffer(0, self.particle_buffers[(self.frame_num + 1) % 2].slice(..));
 
             render_pass.set_vertex_buffer(1, self.vertices_buffer.slice(..));
             // set the texture bind group so something happens with it
-            render_pass.set_bind_group(0,&self.texture_bind_group,&[]);
-
+            render_pass.set_bind_group(0, &self.texture_bind_group, &[]);
 
             // make draw call
 
-            render_pass.draw(0..6,0..NUM_PARTICLES);
+            render_pass.draw(0..6, 0..NUM_PARTICLES);
         }
 
-
         encoder.pop_debug_group();
-        //?? I guess I'm still a bit lost about how one frame affects another specifying the bind group automatically 
-        self.frame_num +=1;
+        //?? I guess I'm still a bit lost about how one frame affects another specifying the bind group automatically
+        self.frame_num += 1;
 
         self.queue.submit(Some(encoder.finish()));
         Ok(())
@@ -547,19 +565,132 @@ impl State {
 
     fn input(&mut self, event: &WindowEvent) -> bool {
         match event {
-            WindowEvent::CursorMoved{position,..} => {
+            WindowEvent::CursorMoved { position, .. } => {
                 //println!("cursor moved {:?}",&position);
                 // update the buffer in the way that we did when they updated the texture
                 // use the queue and write_buffer data to the mouse_buffer
-                self.queue.write_buffer(&self.mouse_buffer,0,bytemuck::cast_slice(&[((position.x as f32)/self.size.width as f32)*2.0 - 1.0,((self.size.height as f32 - position.y as f32)/self.size.height as f32)*2.0 - 1.0]));
+                self.queue.write_buffer(
+                    &self.mouse_buffer,
+                    0,
+                    bytemuck::cast_slice(&[
+                        ((position.x as f32) / self.size.width as f32) * 2.0 - 1.0,
+                        ((self.size.height as f32 - position.y as f32) / self.size.height as f32)
+                            * 2.0
+                            - 1.0,
+                    ]),
+                );
                 true
-            },
-            _ => false
+            }
+            _ => false,
         }
+    }
+    fn rebuild(&mut self) {
+        let sim_param_data = [
+            0.04f32, // deltaT
+            0.1,     // rule1Distance
+            0.025,   // rule2Distance
+            0.025,   // rule3Distance
+            0.02,    // rule1Scale
+            0.05,    // rule2Scale
+            0.005,   // rule3Scale
+        ]
+        .to_vec();
+
+        let sim_param_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("sim param buffer"),
+            contents: bytemuck::cast_slice(&sim_param_data),
+            usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
+        });
+
+        let mouse_bindgroup_layout =
+            self.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("mouse bindgroup layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStage::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+        let compute_bind_group_layout =
+            self.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStage::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(
+                                (sim_param_data.len() * mem::size_of::<f32>()) as _,
+                            ),
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStage::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new((NUM_PARTICLES * 16) as _),
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStage::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new((NUM_PARTICLES * 16) as _),
+                        },
+                        count: None,
+                    },
+                ],
+                label: Some("compute bind group"),
+            });
+        let compute_pipeline_layout =
+            self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("compute pipeline layout"),
+                bind_group_layouts: &[&compute_bind_group_layout, &mouse_bindgroup_layout],
+                push_constant_ranges: &[],
+            });
+        let mut compiler = shaderc::Compiler::new().unwrap();
+        //let cs_src = include_str!("shader.comp");
+        // 
+        let cs_src = String::from_utf8(read("src/shader.comp").unwrap()).unwrap();
+        
+        let cs_spirv = compiler
+            .compile_into_spirv(
+                &cs_src,
+                shaderc::ShaderKind::Compute,
+                "shader.comp",
+                "main",
+                None,
+            )
+            .unwrap();
+        let cs_data = wgpu::util::make_spirv(cs_spirv.as_binary_u8());
+        let cs_module = self.device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("comp shader"),
+            source: cs_data,
+            flags: wgpu::ShaderFlags::default(),
+        });
+
+        let compute_pipeline = self.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("compute pipeline"),
+            layout: Some(&compute_pipeline_layout),
+            module: &cs_module,
+            entry_point: "main",
+        });
+        self.compute_pipeline = compute_pipeline;
     }
     fn update(&mut self) {}
 }
-
 
 fn main() {
     env_logger::init();
@@ -586,6 +717,15 @@ fn main() {
                                 virtual_keycode: Some(VirtualKeyCode::Escape),
                                 ..
                             } => *control_flow = ControlFlow::Exit,
+                            KeyboardInput {
+                                state:ElementState::Pressed,
+                                virtual_keycode:Some(VirtualKeyCode::Space),
+                                ..
+                            }=> {
+                                println!("space pressed");
+                                state.rebuild();
+                                //state = block_on(State::new(&window));
+                            },
                             _ => {}
                         },
                         WindowEvent::Resized(physical_size) => {

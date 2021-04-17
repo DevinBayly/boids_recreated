@@ -13,7 +13,7 @@ layout(set = 0, binding = 1) buffer ParticlesA
 {
    Particle particlesA[ ];
 };
-int NUM_PARTICLES = 1500000;
+int NUM_PARTICLES = 15000;
 // Binding 1 : Particle storage buffer (write)
 layout(set = 0, binding = 2) buffer ParticlesB
 {
@@ -44,7 +44,7 @@ layout (set = 1,binding = 0) uniform UBO2 {
 float random(float i) {
 	return fract(sin(i)*100000.0) - .5;
 }
-float maxVelo = 0.8;
+float maxVelo = .8;
 float radius = 2.0;
 void main()
 {
@@ -63,11 +63,12 @@ void main()
 	// these are large values getting brought in 
 
 	// use the normalized direction to change velocity and have the accumulated velocity update the position
-	vec2 mouse_vec = vec2(uMouse.x,uMouse.y);
+	//vec2 mouse_vec = vec2(uMouse.x,uMouse.y);
+	vec2 mouse_vec = vec2(.5);
 	// this is the radius
 	vec2 newVel = lastVel;
 		// calculate the direction from last to the mouse + some jitter
-		vec2 direction_towards_mouse = normalize(vec2(uMouse.x + random(lastPos.x)*.05,uMouse.y+ random(lastPos.y)*.05) - lastPos);
+		vec2 direction_towards_mouse = normalize(vec2(mouse_vec.x + random(lastPos.x)*.05,mouse_vec.y+ random(lastPos.y)*.05) - lastPos);
 		vec2 direction_away = - direction_towards_mouse;
 		vec2 accel = direction_towards_mouse;
 		newVel+= accel*.01;
@@ -76,7 +77,7 @@ void main()
 	if (length(newVel) > maxVelo) {
 		newVel = normalize(newVel)*maxVelo;
 	} 
-	vec2 newPos = lastPos + newVel*.01	;
+	vec2 newPos = lastPos + newVel;
 	// have limits on the borders
 	// when we hit these flip the velocity direction to simulate bounce
 	if (newPos.x < -1 || newPos.x > 1) {
@@ -85,6 +86,10 @@ void main()
 	if (newPos.y < -1 || newPos.y > 1) {
 		newVel.y *= -1;
 	} 
+	//particlesB[index].vel.xy = newVel;
+	//particlesB[index].vel.xy = vec2(0.);
 	particlesB[index].vel.xy = newVel;
+	
 	particlesB[index].pos.xy  = newPos; 
+	//particlesB[index].pos.xy  = vec2(0.); 
 }
