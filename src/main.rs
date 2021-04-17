@@ -565,26 +565,35 @@ impl State {
 
     fn input(&mut self, event: &WindowEvent) -> bool {
         match event {
-            WindowEvent::CursorMoved { position, .. } => {
+            WindowEvent::CursorMoved{position,..} => {
                 //println!("cursor moved {:?}",&position);
                 // update the buffer in the way that we did when they updated the texture
                 // use the queue and write_buffer data to the mouse_buffer
-                self.queue.write_buffer(
-                    &self.mouse_buffer,
-                    0,
-                    bytemuck::cast_slice(&[
-                        ((position.x as f32) / self.size.width as f32) * 2.0 - 1.0,
-                        ((self.size.height as f32 - position.y as f32) / self.size.height as f32)
-                            * 2.0
-                            - 1.0,
-                    ]),
-                );
+                self.queue.write_buffer(&self.mouse_buffer,0,bytemuck::cast_slice(&[((position.x as f32)/self.size.width as f32)*2.0 - 1.0,((self.size.height as f32 - position.y as f32)/self.size.height as f32)*2.0 - 1.0]));
                 true
-            }
-            _ => false,
+            },
+            _ => false
         }
     }
-    fn rebuild(&mut self) {
+    fn rebuild(&mut self ) {
+        let cs_src = String::from_utf8(read("src/shader.comp").unwrap()).unwrap();
+        let mut compiler = shaderc::Compiler::new().unwrap();
+        let cs_spirv = compiler
+            .compile_into_spirv(
+                &cs_src,
+                shaderc::ShaderKind::Compute,
+                "shader.comp",
+                "main",
+                None,
+            )
+            .unwrap();
+
+        let cs_data = wgpu::util::make_spirv(cs_spirv.as_binary_u8());
+        let cs_module = self.device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("comp shader"),
+            source: cs_data,
+            flags: wgpu::ShaderFlags::default(),
+        });
         let sim_param_data = [
             0.04f32, // deltaT
             0.1,     // rule1Distance
@@ -660,26 +669,7 @@ impl State {
                 bind_group_layouts: &[&compute_bind_group_layout, &mouse_bindgroup_layout],
                 push_constant_ranges: &[],
             });
-        let mut compiler = shaderc::Compiler::new().unwrap();
-        //let cs_src = include_str!("shader.comp");
-        // 
-        let cs_src = String::from_utf8(read("src/shader.comp").unwrap()).unwrap();
-        
-        let cs_spirv = compiler
-            .compile_into_spirv(
-                &cs_src,
-                shaderc::ShaderKind::Compute,
-                "shader.comp",
-                "main",
-                None,
-            )
-            .unwrap();
-        let cs_data = wgpu::util::make_spirv(cs_spirv.as_binary_u8());
-        let cs_module = self.device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-            label: Some("comp shader"),
-            source: cs_data,
-            flags: wgpu::ShaderFlags::default(),
-        });
+        // now create the compute pipeline
 
         let compute_pipeline = self.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("compute pipeline"),
@@ -691,6 +681,7 @@ impl State {
     }
     fn update(&mut self) {}
 }
+
 
 fn main() {
     env_logger::init();
