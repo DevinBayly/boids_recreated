@@ -18,7 +18,7 @@ async fn run() {
         .await
         .unwrap();
     // need to make texture
-    let texture_size = 256_u32;
+    let texture_size = 3840_u32;
     // make a texture description, using struct
     let texture_description = wgpu::TextureDescriptor {
         size: wgpu::Extent3d {
@@ -160,7 +160,7 @@ async fn run() {
         render_pass.draw(0..3, 0..1);
     }
 
-
+    // this is the step where we are going to be putting the stuff from window in an image to bring back
     encoder.copy_texture_to_buffer(
         wgpu::ImageCopyTexture {
             aspect: wgpu::TextureAspect::All,
@@ -178,6 +178,23 @@ async fn run() {
         },
         texture_description.size,
     );
+    // and now we take the buffer and make an image out of it and save it?
+    queue.submit(Some(encoder.finish()));
+    {
+        let buffer_slice = buffer.slice(..);
+        let mapping = buffer_slice.map_async(wgpu::MapMode::Read);
+        //apparently if this step isn't done then the application freezes`
+        device.poll(wgpu::Maintain::Wait);
+        mapping.await.unwrap();
+
+        let data = buffer_slice.get_mapped_range();
+        use image::{ImageBuffer,Rgba};
+
+        let buffer_im = ImageBuffer::<Rgba<u8>,_>::from_raw(texture_size,texture_size,data).unwrap();
+        buffer_im.save("image.png").unwrap();
+
+    }
+    buffer.unmap();
 }
 
 fn main() {
