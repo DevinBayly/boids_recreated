@@ -1,4 +1,6 @@
 // starting over from scratch because it's been a while since I wrote anything like this
+use std::fs::write;
+use std::fs::read;
 
 use std::num::NonZeroU32;
 
@@ -18,7 +20,7 @@ async fn run() {
         .await
         .unwrap();
     // need to make texture
-    let texture_size = 3840_u32;
+    let texture_size = 256_u32;
     // make a texture description, using struct
     let texture_description = wgpu::TextureDescriptor {
         size: wgpu::Extent3d {
@@ -51,30 +53,37 @@ async fn run() {
     let buffer = device.create_buffer(&output_buffer_desc);
     // bring in and compile the shaders
     // then make descriptor,layout, and eventually a pipeline
-    let vs_source = include_str!("shader.vert");
-    let fs_source = include_str!("shader.frag");
-    let mut compiler = shaderc::Compiler::new().unwrap();
-    let vs_spirv = compiler
-        .compile_into_spirv(
-            vs_source,
-            shaderc::ShaderKind::Vertex,
-            "shader.vert",
-            "main",
-            None,
-        )
-        .unwrap();
-    let fs_spirv = compiler
-        .compile_into_spirv(
-            fs_source,
-            shaderc::ShaderKind::Fragment,
-            "shader.frag",
-            "main",
-            None,
-        )
-        .unwrap();
+    // let vs_source = include_str!("shader.vert");
+    // let fs_source = include_str!("shader.frag");
+    // let mut compiler = shaderc::Compiler::new().unwrap();
+    // let vs_spirv = compiler
+    //     .compile_into_spirv(
+    //         vs_source,
+    //         shaderc::ShaderKind::Vertex,
+    //         "shader.vert",
+    //         "main",
+    //         None,
+    //     )
+    //     .unwrap();
+    // let fs_spirv = compiler
+    //     .compile_into_spirv(
+    //         fs_source,
+    //         shaderc::ShaderKind::Fragment,
+    //         "shader.frag",
+    //         "main",
+    //         None,
+    //     )
+    //     .unwrap();
+    let vbin = read("./vert_binary").unwrap();
+    let fbin = read("./frag_binary").unwrap();
+    
+    let vs_data = wgpu::util::make_spirv(&vbin);
+    let fs_data = wgpu::util::make_spirv(&fbin);
+    //write out the spirv to use on HPC
 
-    let vs_data = wgpu::util::make_spirv(&vs_spirv.as_binary_u8());
-    let fs_data = wgpu::util::make_spirv(&fs_spirv.as_binary_u8());
+    // write("vert_binary",&vs_spirv.as_binary_u8());
+    // write("frag_binary",&fs_spirv.as_binary_u8());
+
 
     //make the modules
 
