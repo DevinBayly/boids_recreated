@@ -16,3 +16,5 @@ shaderc = "0.7"
 cgmath = "0.18"
 wgpu = { version="0.10", features=["spirv"]}
 pollster = "0.2"
+hdf5 ="0.7.1"
+bytemuck = { version = "1.4", features = [ "derive" ] }

@@ -1,4 +1,5 @@
 // starting over from scratch because it's been a while since I wrote anything like this
+use wgpu::util::DeviceExt;
 use std::fs::write;
 use std::fs::read;
 
@@ -20,7 +21,7 @@ async fn run() {
         .await
         .unwrap();
     // need to make texture
-    let texture_size = 256_u32;
+    let texture_size = 3840_u32;
     // make a texture description, using struct
     let texture_description = wgpu::TextureDescriptor {
         size: wgpu::Extent3d {
@@ -51,40 +52,74 @@ async fn run() {
     };
     // device makes buffer just like making the texture
     let buffer = device.create_buffer(&output_buffer_desc);
+ // making the vertex buffers
+        // buffer for the shape of our output, the arrow shape made of 2 triangles, so 6 vertices total
+        // actually it makes more sense that this is the xy points for vertices of a single triangle
+        let side_length = 0.001f32;
+        let vertex_buffer_data = [-side_length,-side_length,
+        side_length,-side_length,
+        side_length,side_length,
+        // second triangle now
+        side_length,side_length,
+        -side_length,side_length,
+        -side_length,-side_length]; // ? so is this x and Y values totgether? or are we doing something in the shader code to take this and produce x y values?
+                                                                             // ? mystery about how the other half of the shape gets drawn , but maybe that will become clear in the render
+                                                                             // create actual buffer from the data
+        let vertices_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("vertex buffer"),
+            contents: bytemuck::cast_slice(&vertex_buffer_data),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        });
+
+// here's where we will read in the hdf5 data
+    let mut f = hdf5::File::open("./positions_chunk0.hdf5").unwrap();
+    let mut dataset = f.dataset("snapshot_000").unwrap();
+    let data = dataset.read_2d::<f32>().unwrap();
+    let pbuffer = data.as_slice().unwrap();
+
+    let points_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor{
+        label:Some("hdf5 points"),
+        contents:bytemuck::cast_slice(&pbuffer),
+        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST
+    });
+
+    
+
     // bring in and compile the shaders
     // then make descriptor,layout, and eventually a pipeline
-    // let vs_source = include_str!("shader.vert");
-    // let fs_source = include_str!("shader.frag");
-    // let mut compiler = shaderc::Compiler::new().unwrap();
-    // let vs_spirv = compiler
-    //     .compile_into_spirv(
-    //         vs_source,
-    //         shaderc::ShaderKind::Vertex,
-    //         "shader.vert",
-    //         "main",
-    //         None,
-    //     )
-    //     .unwrap();
-    // let fs_spirv = compiler
-    //     .compile_into_spirv(
-    //         fs_source,
-    //         shaderc::ShaderKind::Fragment,
-    //         "shader.frag",
-    //         "main",
-    //         None,
-    //     )
-    //     .unwrap();
-    let vbin = read("./vert_binary").unwrap();
-    let fbin = read("./frag_binary").unwrap();
+    let vs_source = include_str!("shader.vert");
+    let fs_source = include_str!("shader.frag");
+    let mut compiler = shaderc::Compiler::new().unwrap();
+    let vs_spirv = compiler
+        .compile_into_spirv(
+            vs_source,
+            shaderc::ShaderKind::Vertex,
+            "shader.vert",
+            "main",
+            None,
+        )
+        .unwrap();
+    let fs_spirv = compiler
+        .compile_into_spirv(
+            fs_source,
+            shaderc::ShaderKind::Fragment,
+            "shader.frag",
+            "main",
+            None,
+        )
+        .unwrap();
+    // let vbin = read("./vert_binary").unwrap();
+    // let fbin = read("./frag_binary").unwrap();
     
-    let vs_data = wgpu::util::make_spirv(&vbin);
-    let fs_data = wgpu::util::make_spirv(&fbin);
+    let vs_data = wgpu::util::make_spirv(&vs_spirv.as_binary_u8());
+    let fs_data = wgpu::util::make_spirv(&fs_spirv.as_binary_u8());
+    // let vs_data = wgpu::util::make_spirv(&vbin);
+    // let fs_data = wgpu::util::make_spirv(&fbin);
     //write out the spirv to use on HPC
-
     // write("vert_binary",&vs_spirv.as_binary_u8());
     // write("frag_binary",&fs_spirv.as_binary_u8());
 
-
+    // the astro data needs to be brought in like the particle buffes from before
     //make the modules
 
     let vs_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
@@ -108,7 +143,29 @@ async fn run() {
         layout: Some(&render_pipeline_layout),
         vertex: wgpu::VertexState {
             module: &vs_module,
-            buffers: &[],
+            buffers: &[
+                wgpu::VertexBufferLayout{
+                    array_stride:2*4, // a f32 is 4bytes and x,y 2d is 2
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes:&[wgpu::VertexAttribute{
+                        shader_location:0,
+                        offset:0,
+                        format:wgpu::VertexFormat::Float32x2 //basically a vec2
+                    }
+                    ]
+                },
+                wgpu::VertexBufferLayout{
+                    array_stride:3*4, //three values per instance, xyz
+                    step_mode:wgpu::VertexStepMode::Instance,
+                    attributes : &[
+                        wgpu::VertexAttribute{
+                            shader_location:1,
+                            offset:0,
+                            format:wgpu::VertexFormat::Float32x3
+                        }
+                    ]
+                }
+            ],
             entry_point: "main",
         },
         fragment: Some(wgpu::FragmentState {
@@ -117,7 +174,7 @@ async fn run() {
             entry_point: "main",
             targets: &[wgpu::ColorTargetState {
                 format: texture_description.format,
-                blend: Some(wgpu::BlendState::REPLACE),
+                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                 write_mask: wgpu::ColorWrites::ALL,
             }],
         }),
@@ -165,8 +222,10 @@ async fn run() {
         let mut render_pass = encoder.begin_render_pass(&render_pass_desc);
         // now we bring the pipeline back in
         render_pass.set_pipeline(&render_pipeline);
+        render_pass.set_vertex_buffer(0, vertices_buffer.slice(..));
+        render_pass.set_vertex_buffer(1, points_buffer.slice(..));
         println!("made it to the draw call");
-        render_pass.draw(0..3, 0..1);
+        render_pass.draw(0..6, 0..(pbuffer.len()/3) as u32);
     }
 
     // this is the step where we are going to be putting the stuff from window in an image to bring back
