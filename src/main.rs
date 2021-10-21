@@ -2,6 +2,8 @@
 use wgpu::util::DeviceExt;
 use std::fs::write;
 use std::fs::read;
+mod naga_convert;
+use crate::naga_convert::conversion_tools::convert_src;
 
 use std::num::NonZeroU32;
 
@@ -21,7 +23,7 @@ async fn run() {
         .await
         .unwrap();
     // need to make texture
-    let texture_size = 3840_u32;
+    let texture_size = 3840_u32/2;
     // make a texture description, using struct
     let texture_description = wgpu::TextureDescriptor {
         size: wgpu::Extent3d {
@@ -55,7 +57,7 @@ async fn run() {
  // making the vertex buffers
         // buffer for the shape of our output, the arrow shape made of 2 triangles, so 6 vertices total
         // actually it makes more sense that this is the xy points for vertices of a single triangle
-        let side_length = 0.001f32;
+        let side_length = 0.0001f32;
         let vertex_buffer_data = [-side_length,-side_length,
         side_length,-side_length,
         side_length,side_length,
@@ -72,8 +74,8 @@ async fn run() {
         });
 
 // here's where we will read in the hdf5 data
-    let mut f = hdf5::File::open("./positions_chunk0.hdf5").unwrap();
-    let mut dataset = f.dataset("snapshot_000").unwrap();
+    let mut f = hdf5::File::open("./positions_chunk6.hdf5").unwrap();
+    let mut dataset = f.dataset("snapshot_069").unwrap();
     let data = dataset.read_2d::<f32>().unwrap();
     let pbuffer = data.as_slice().unwrap();
 
@@ -87,32 +89,34 @@ async fn run() {
 
     // bring in and compile the shaders
     // then make descriptor,layout, and eventually a pipeline
-    let vs_source = include_str!("shader.vert");
-    let fs_source = include_str!("shader.frag");
-    let mut compiler = shaderc::Compiler::new().unwrap();
-    let vs_spirv = compiler
-        .compile_into_spirv(
-            vs_source,
-            shaderc::ShaderKind::Vertex,
-            "shader.vert",
-            "main",
-            None,
-        )
-        .unwrap();
-    let fs_spirv = compiler
-        .compile_into_spirv(
-            fs_source,
-            shaderc::ShaderKind::Fragment,
-            "shader.frag",
-            "main",
-            None,
-        )
-        .unwrap();
+    // let vs_source = include_str!("shader.vert");
+    // let fs_source = include_str!("shader.frag");
+    // let mut compiler = shaderc::Compiler::new().unwrap();
+    // let vs_spirv = compiler
+    //     .compile_into_spirv(
+    //         vs_source,
+    //         shaderc::ShaderKind::Vertex,
+    //         "shader.vert",
+    //         "main",
+    //         None,
+    //     )
+    //     .unwrap();
+    // let fs_spirv = compiler
+    //     .compile_into_spirv(
+    //         fs_source,
+    //         shaderc::ShaderKind::Fragment,
+    //         "shader.frag",
+    //         "main",
+    //         None,
+    //     )
+    //     .unwrap();
     // let vbin = read("./vert_binary").unwrap();
     // let fbin = read("./frag_binary").unwrap();
+    let vs_data = convert_src("./src/shader.vert");
+    let fs_data = convert_src("./src/shader.frag");
     
-    let vs_data = wgpu::util::make_spirv(&vs_spirv.as_binary_u8());
-    let fs_data = wgpu::util::make_spirv(&fs_spirv.as_binary_u8());
+    let vs_data = wgpu::ShaderSource::SpirV(vs_data.into());
+    let fs_data = wgpu::ShaderSource::SpirV(fs_data.into());
     // let vs_data = wgpu::util::make_spirv(&vbin);
     // let fs_data = wgpu::util::make_spirv(&fbin);
     //write out the spirv to use on HPC
@@ -209,9 +213,9 @@ async fn run() {
                 resolve_target: None, // I think this is because we are rendering without a window target is None
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.1,
-                        g: 0.2,
-                        b: 0.5,
+                        r: 0.0,
+                        g: 0.0,
+                        b: 0.0,
                         a: 1.0,
                     }),
                     store: true,

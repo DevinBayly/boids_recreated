@@ -18,3 +18,4 @@ wgpu = { version="0.10", features=["spirv"]}
 pollster = "0.2"
 hdf5 ="0.7.1"
 bytemuck = { version = "1.4", features = [ "derive" ] }
+naga = {version = "0.7.0", features = ["glsl-in","spv-out"]}
